@@ -98,7 +98,10 @@ if (!MONGODB_URI) {
 const MONGODB_DB = 'val_specialism';
 const MONGODB_COLLECTION = 'app_state';
 
-const mongoClient = new MongoClient(MONGODB_URI);
+const mongoClient = new MongoClient(MONGODB_URI, {
+  family: 4,
+  tls: true
+});
 
 let mongoCollection;
 
