@@ -323,15 +323,45 @@ app.post('/api/feedback',auth,async (req,res)=>{
   if(!reason||!usefulness||!problem) return jsonError(res,400,'Please answer all three questions.');
   const feedback={id:crypto.randomUUID(),user_id:req.user.id,email:req.user.email,reason,usefulness,problem,details,created_at:now()};
   insert('feedback',feedback);
-  if(!mailer) return jsonError(res,503,'Feedback is saved, but email delivery is not configured yet. Please email '+SUPPORT_EMAIL+' directly.');
   try {
-    await mailer.sendMail({from:SMTP_USER,to:SUPPORT_EMAIL,replyTo:req.user.email,subject:`Val Specialism Feedback — ${req.user.email}`,text:[`User: ${req.user.email}`,`Reason: ${reason}`,`What would make Val Specialism more useful: ${usefulness}`,`Validation/data problem: ${problem}`,`Additional details: ${details || '(none)'}`,`Submitted: ${feedback.created_at}`].join('\n\n')});
-    res.status(201).json({ok:true,emailSent:true});
-  } catch(err) {
-    console.error('Feedback email failed:',err?.message||err);
-    res.status(201).json({ok:true,emailSent:false,warning:'Feedback was saved, but the email could not be delivered. Please email '+SUPPORT_EMAIL+' directly.'});
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: process.env.RESEND_FROM_EMAIL,
+      to: SUPPORT_EMAIL,
+      reply_to: req.user.email,
+      subject: `Val Specialism Feedback — ${req.user.email}`,
+      text: [
+        `User: ${req.user.email}`,
+        `Reason: ${reason}`,
+        `What would make Val Specialism more useful: ${usefulness}`,
+        `Validation/data problem: ${problem}`,
+        `Additional details: ${details || '(none)'}`,
+        `Submitted: ${feedback.created_at}`
+      ].join('\n\n')
+    })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data?.message || 'Resend email failed');
   }
-});
+
+  res.status(201).json({ok:true,emailSent:true});
+
+} catch(err) {
+  console.error('Feedback email failed:', err?.message || err);
+  res.status(201).json({
+    ok:true,
+    emailSent:false,
+    warning:'Feedback was saved, but the email could not be delivered. Please email '+SUPPORT_EMAIL+' directly.'
+  });
+}
 app.get('/api/admin/payments',auth,(req,res)=>{
   if(!ADMIN_EMAIL || req.user.email.toLowerCase()!==ADMIN_EMAIL) return jsonError(res,403,'Admin access required.');
   const rows=allSorted('payments',(a,b)=>b.created_at.localeCompare(a.created_at)).map(p=>{const u=findOne('users',x=>x.id===p.user_id)||{};return {...p,name:u.name||'',email:u.email||''};});
