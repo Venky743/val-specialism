@@ -323,7 +323,7 @@ app.post('/api/feedback',auth,async (req,res)=>{
   if(!reason||!usefulness||!problem) return jsonError(res,400,'Please answer all three questions.');
   const feedback={id:crypto.randomUUID(),user_id:req.user.id,email:req.user.email,reason,usefulness,problem,details,created_at:now()};
   insert('feedback',feedback);
-  try {
+try {
   const response = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {
@@ -352,16 +352,21 @@ app.post('/api/feedback',auth,async (req,res)=>{
     throw new Error(data?.message || 'Resend email failed');
   }
 
-  res.status(201).json({ok:true,emailSent:true});
+  res.status(201).json({
+    ok: true,
+    emailSent: true
+  });
 
 } catch(err) {
   console.error('Feedback email failed:', err?.message || err);
+
   res.status(201).json({
-    ok:true,
-    emailSent:false,
-    warning:'Feedback was saved, but the email could not be delivered. Please email '+SUPPORT_EMAIL+' directly.'
+    ok: true,
+    emailSent: false,
+    warning: 'Feedback was saved, but the email could not be delivered. Please email ' + SUPPORT_EMAIL + ' directly.'
   });
 }
+});
 app.get('/api/admin/payments',auth,(req,res)=>{
   if(!ADMIN_EMAIL || req.user.email.toLowerCase()!==ADMIN_EMAIL) return jsonError(res,403,'Admin access required.');
   const rows=allSorted('payments',(a,b)=>b.created_at.localeCompare(a.created_at)).map(p=>{const u=findOne('users',x=>x.id===p.user_id)||{};return {...p,name:u.name||'',email:u.email||''};});
